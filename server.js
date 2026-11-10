@@ -1,13 +1,21 @@
+
 require('dotenv').config();
 
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { Pool } = require('pg');
+const { Resend } = require('resend');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const PASSWORD = process.env.LOVE_APP_PASSWORD || 'PearlSiRi';
+
+const resend = process.env.RESEND_API_KEY
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
+
+const NOTIFICATION_EMAIL = 'srileka1020@gmail.com';
 
 if (!process.env.DATABASE_URL) {
   console.error('DATABASE_URL is missing. Configure a PostgreSQL database and set DATABASE_URL.');
@@ -16,7 +24,9 @@ if (!process.env.DATABASE_URL) {
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: false },
+  ssl: process.env.PGSSLMODE === 'disable'
+    ? false
+    : { rejectUnauthorized: false },
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000
@@ -35,17 +45,21 @@ async function initializeDatabase() {
     )
   `);
 
-  // Import the original SQLite message history once, without duplicating rows.
+  // Import original SQLite message history once.
   const seedPath = path.join(__dirname, 'data', 'messages-seed.json');
+
   if (fs.existsSync(seedPath)) {
     const seed = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+
     for (const item of seed) {
       await pool.query(
         `INSERT INTO messages (id, sender, message, created_at)
-         VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING`,
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (id) DO NOTHING`,
         [item.id, item.sender, item.message, item.created_at]
       );
     }
+
     await pool.query(`
       SELECT setval(
         pg_get_serial_sequence('messages', 'id'),
@@ -56,62 +70,164 @@ async function initializeDatabase() {
   }
 }
 
+// LOGIN
 app.post('/api/login', (req, res) => {
-  if (req.body?.password === PASSWORD) return res.json({ ok: true });
-  res.status(401).json({ ok: false, message: 'Wrong password' });
+  if (req.body?.password === PASSWORD) {
+    return res.json({ ok: true });
+  }
+
+  res.status(401).json({
+    ok: false,
+    message: 'Wrong password'
+  });
 });
 
+// SEND AND SAVE MESSAGE + EMAIL NOTIFICATION
 app.post('/api/messages', async (req, res) => {
   try {
     const message = String(req.body?.message || '').trim();
     const sender = String(req.body?.sender || '').trim();
-    if (!message) return res.status(400).json({ ok: false, message: 'Message is empty.' });
-    if (!['Pearl', 'SiRi'].includes(sender)) {
-      return res.status(400).json({ ok: false, message: 'Choose who is sending the message.' });
+
+    if (!message) {
+      return res.status(400).json({
+        ok: false,
+        message: 'Message is empty.'
+      });
     }
+
+    if (!['Pearl', 'SiRi'].includes(sender)) {
+      return res.status(400).json({
+        ok: false,
+        message: 'Choose who is sending the message.'
+      });
+    }
+
     const savedText = message.slice(0, 2000);
+
+    // First save the message permanently in PostgreSQL.
     const result = await pool.query(
       `INSERT INTO messages (sender, message, created_at)
        VALUES ($1, $2, NOW())
        RETURNING id, sender, message, created_at AS "createdAt"`,
       [sender, savedText]
     );
-    res.json({ ok: true, message: result.rows[0] });
+
+    const savedMessage = result.rows[0];
+
+    // Send email notification through Resend.
+    if (resend) {
+      try {
+        const escapeHtml = (value) =>
+          String(value).replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+          })[char]);
+
+        const { data, error } = await resend.emails.send({
+          from: 'Pearl SiRi Love App <onboarding@resend.dev>',
+          to: [NOTIFICATION_EMAIL],
+          subject: '💌 New message from your Love App!',
+          html: `
+            <div style="font-family:Arial,sans-serif;padding:20px;color:#63365c;">
+              <h2>💗 You received a new message!</h2>
+
+              <p><strong>From:</strong> ${escapeHtml(sender)}</p>
+
+              <p><strong>Message:</strong></p>
+
+              <div style="background:#fff0f6;padding:18px;border-radius:12px;">
+                ${escapeHtml(savedText).replace(/\n/g, '<br>')}
+              </div>
+
+              <p><strong>Time:</strong>
+                ${escapeHtml(new Date(savedMessage.createdAt).toLocaleString())}
+              </p>
+
+              <p>With love, 💕<br>Pearl SiRi Love App</p>
+            </div>
+          `
+        });
+
+        if (error) {
+          console.error('Email notification failed:', error);
+        } else {
+          console.log('Email notification sent:', data?.id);
+        }
+      } catch (emailError) {
+        console.error('Email notification error:', emailError);
+      }
+    } else {
+      console.log('Email notification skipped: RESEND_API_KEY is not configured.');
+    }
+
+    // Message is saved even if email delivery fails.
+    res.json({
+      ok: true,
+      message: savedMessage
+    });
+
   } catch (error) {
     console.error('Could not save message:', error);
-    res.status(500).json({ ok: false, message: 'Could not save the message. Please try again.' });
+
+    res.status(500).json({
+      ok: false,
+      message: 'Could not save the message. Please try again.'
+    });
   }
 });
 
+// LOAD INBOX
 app.get('/api/messages', async (req, res) => {
   if (req.headers['x-love-password'] !== PASSWORD) {
-    return res.status(401).json({ ok: false, message: 'Unauthorized' });
+    return res.status(401).json({
+      ok: false,
+      message: 'Unauthorized'
+    });
   }
+
   try {
     const result = await pool.query(
       `SELECT id, sender, message, created_at AS "createdAt"
-       FROM messages ORDER BY id ASC`
+       FROM messages
+       ORDER BY id ASC`
     );
-    res.json({ ok: true, messages: result.rows });
+
+    res.json({
+      ok: true,
+      messages: result.rows
+    });
+
   } catch (error) {
     console.error('Could not load messages:', error);
-    res.status(500).json({ ok: false, message: 'Could not load the inbox.' });
+
+    res.status(500).json({
+      ok: false,
+      message: 'Could not load the inbox.'
+    });
   }
 });
 
+// HOME PAGE
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// START SERVER
 initializeDatabase()
   .then(() => {
-    app.listen(PORT, () => console.log(`❤️ Pearl & SiRi Love App listening on port ${PORT}`));
+    app.listen(PORT, () => {
+      console.log(`❤️ Pearl & SiRi Love App listening on port ${PORT}`);
+    });
   })
   .catch((error) => {
     console.error('PostgreSQL initialization failed:', error);
     process.exit(1);
   });
 
+// SHUTDOWN
 process.on('SIGTERM', async () => {
   await pool.end();
   process.exit(0);
