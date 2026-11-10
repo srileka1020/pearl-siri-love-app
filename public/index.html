@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#140b1d">
+  <title>Pearl & SiRi — Love App ❤️</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="background"></div>
+  <div class="stars"></div>
+  <div id="butterflies" aria-hidden="true"></div>
+  <div id="hearts" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">♡ <span>Love App</span></div>
+    <button id="topInbox" class="inbox-pill">✉ Inbox</button>
+  </header>
+
+  <main class="page">
+    <!-- LOGIN -->
+    <section id="loginScreen" class="screen login-screen">
+      <div class="glass login-card">
+        <div class="neon-heart">♥</div>
+        <p class="eyebrow">A SECRET PLACE FOR TWO</p>
+        <h1>Welcome, my love</h1>
+        <p class="lead">You can enter only if you Know the magic word.</p>
+
+        <form id="loginForm">
+          <label for="password">Secret password</label>
+          <div class="password-box">
+            <input id="password" type="password" placeholder="Enter the password" autocomplete="off" required>
+            <button id="togglePassword" type="button" aria-label="Show password">◉</button>
+          </div>
+          <button class="neon-button" type="submit">Unlock my heart ✨</button>
+          <p id="loginError" class="error"></p>
+        </form>
+      </div>
+    </section>
+
+    <!-- LOVE HOME -->
+    <section id="homeScreen" class="screen hidden">
+      <div class="glass love-card">
+        <div class="ornament">♡ ── ✦ ── ♡</div>
+        <h2>I LOVE YOU<br><span>Aththan</span></h2>
+
+        <div class="couple">
+          <div class="person">
+            <div class="portrait">
+              <img src="assets/pearl-joker.png" alt="Joker-inspired shadow portrait for Pearl">
+            </div>
+            <div class="name">Pearl</div>
+            <div class="mini-heart">♡</div>
+          </div>
+
+          <div class="between">∞</div>
+
+          <div class="person">
+            <div class="portrait">
+              <img src="assets/siri-witch.png" alt="Witch shadow portrait for SiRi">
+            </div>
+            <div class="name">SiRi</div>
+            <div class="mini-heart">♡</div>
+          </div>
+        </div>
+
+        <p class="love-line">Two shadows. One heart. One little secret world. 💕</p>
+
+        <button id="messageButton" class="neon-button">💌 Send me a message</button>
+        <button id="inboxButton" class="ghost-button">🔐 View My Messages (Inbox)</button>
+      </div>
+
+      <div id="messagePanel" class="glass message-card hidden">
+        <div class="panel-title">♡ Send me a message ♡</div>
+        <label class="sender-label" for="senderSelect">Sending as</label>
+        <select id="senderSelect" class="sender-select">
+          <option value="Pearl">Pearl</option>
+          <option value="SiRi">SiRi</option>
+        </select>
+        <textarea id="messageText" maxlength="2000" placeholder="Type something from your heart..."></textarea>
+        <div class="counter"><span id="charCount">0</span>/310</div>
+        <button id="sendButton" class="neon-button">Send Message ➤</button>
+        <p id="sendStatus" class="status"></p>
+      </div>
+
+      <div class="footer-note">Made with too much love ✦ Pearl ♡ SiRi</div>
+    </section>
+
+    <!-- INBOX -->
+    <section id="inboxScreen" class="screen hidden">
+      <div class="glass inbox-card">
+        <button id="backButton" class="back-button">← Back to our little world</button>
+        <h2>Secret Inbox 🔐</h2>
+        
+        <div id="inboxList"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- AFTER LOGIN POPUP -->
+  <div id="loveModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-card">
+      <div class="modal-heart">♥</div>
+      <p class="eyebrow">WELCOME INSIDE</p>
+      <h2>I LOVE YOU<br><span>THALAIVAREYYY</span></h2>
+      <div class="modal-symbols">🃏 &nbsp; ♡ &nbsp; 🧙‍♀️</div>
+      <button id="enterButton" class="neon-button">Enter our world ✨</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
